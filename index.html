@@ -7,14 +7,15 @@
 <meta name="description" content="A 20-second drill for the odd five-letter words that make Wordle hard.">
 <style>
   :root {
-    --bg: #121213; --fg: #e8e8e8; --muted: #818384; --tile: #3a3a3c;
-    --green: #538d4e; --yellow: #b59f3b; --red: #a94442; --card: #1e1e20;
+    --bg: #121213; --fg: #e8e8e8; --muted: #818384; --tile: #3a3a3c; --key: #818384;
+    --green: #538d4e; --red: #a94442; --card: #1e1e20;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--fg);
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  body { display: flex; flex-direction: column; align-items: center; min-height: 100dvh; padding: 16px; }
-  main { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 16px; }
+  body { display: flex; flex-direction: column; align-items: center; min-height: 100dvh; padding: 16px;
+    -webkit-user-select: none; user-select: none; }
+  main { width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 16px; }
   h1 { font-size: 1.4rem; margin: 0; text-align: center; letter-spacing: .04em; }
   .sub { color: var(--muted); text-align: center; margin: 0; font-size: .95rem; }
   .row { display: flex; justify-content: space-between; align-items: center; font-variant-numeric: tabular-nums; }
@@ -24,12 +25,7 @@
   .tile { width: 58px; height: 58px; display: grid; place-items: center; font-size: 1.9rem; font-weight: 700;
     text-transform: uppercase; border: 2px solid var(--tile); border-radius: 4px; }
   .tile.green { background: var(--green); border-color: var(--green); }
-  .grays { text-align: center; color: var(--muted); font-size: .95rem; }
-  .grays b { color: var(--fg); letter-spacing: .25em; text-transform: uppercase; margin-left: .3em; }
-  input { width: 100%; font: inherit; font-size: 1.6rem; text-transform: uppercase; text-align: center;
-    letter-spacing: .3em; padding: 10px; border-radius: 6px; border: 2px solid var(--tile);
-    background: #000; color: var(--fg); outline: none; }
-  input:focus { border-color: var(--muted); }
+  .tile.filled { border-color: var(--muted); }
   .flash { min-height: 1.4em; text-align: center; font-weight: 600; }
   .flash.bad { color: #ff6b6b; }
   .flash.good { color: #7bd389; }
@@ -40,7 +36,6 @@
   .chip.missed { background: transparent; border: 1px solid var(--muted); color: var(--muted); }
   button { font: inherit; font-size: 1.1rem; font-weight: 700; padding: 12px 20px; border: 0; border-radius: 8px;
     background: var(--green); color: #fff; cursor: pointer; width: 100%; }
-  button.secondary { background: var(--tile); }
   .card { background: var(--card); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
   .card h2 { margin: 0; font-size: 1rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
   .legend { color: var(--muted); font-size: .85rem; text-align: center; }
@@ -49,16 +44,27 @@
   footer a { color: var(--muted); }
   @keyframes shake { 0%,100% { transform: translateX(0) } 25% { transform: translateX(-6px) } 75% { transform: translateX(6px) } }
   .shake { animation: shake .25s; }
+
+  /* On-screen keyboard */
+  .keyboard { display: flex; flex-direction: column; gap: 6px; width: 100%; touch-action: manipulation; }
+  .krow { display: flex; gap: 5px; justify-content: center; }
+  .key { flex: 1; max-width: 44px; height: 56px; border: 0; border-radius: 5px; background: var(--key); color: #fff;
+    font: inherit; font-size: 1.1rem; font-weight: 700; text-transform: uppercase; padding: 0; cursor: pointer;
+    display: grid; place-items: center; width: auto; }
+  .key.wide { max-width: 68px; flex: 1.6; font-size: .8rem; }
+  .key.green { background: var(--green); }
+  .key.gray { background: var(--tile); color: #555; cursor: default; opacity: .55; }
+  .key:active:not(.gray) { filter: brightness(1.25); }
 </style>
 </head>
 <body>
 <main>
   <h1>vrdl</h1>
-  <p class="sub">Type every five-letter word that fits before time runs out.</p>
+  <p class="sub">Fill the gaps with every five-letter word that fits before time runs out.</p>
 
   <section id="intro" class="card">
-    <p style="margin:0">Green tiles are fixed. Gray letters are <em>not</em> in the word. Words from the
-      real Wordle answer list score 2, other valid words score 1. Words auto-submit at five letters.</p>
+    <p style="margin:0">Green tiles are fixed. Dimmed keys are letters <em>not</em> in the word. Tap letters to
+      fill the empty tiles. Words from the real Wordle answer list score 2, other valid words score 1.</p>
     <div class="row"><span>Best score</span><b id="best">0</b></div>
     <div class="row"><span>Rounds played</span><b id="rounds">0</b></div>
     <button id="start">Start</button>
@@ -67,11 +73,9 @@
   <section id="game" class="hidden">
     <div class="row"><span>Score <b id="score">0</b></span><span class="timer" id="timer">20</span></div>
     <div class="tiles" id="tiles"></div>
-    <div class="grays">Not in word: <b id="grays"></b></div>
-    <input id="guess" type="text" maxlength="5" autocomplete="off" autocorrect="off" autocapitalize="characters"
-      spellcheck="false" inputmode="latin" aria-label="Your guess" enterkeyhint="go">
     <div class="flash" id="flash"></div>
     <div class="found" id="found"></div>
+    <div class="keyboard" id="keyboard" aria-label="Letter keys"></div>
   </section>
 
   <section id="results" class="card hidden">
@@ -96,13 +100,17 @@
   var $ = function (id) { return document.getElementById(id); };
   var els = {
     intro: $("intro"), game: $("game"), results: $("results"), best: $("best"), rounds: $("rounds"),
-    score: $("score"), timer: $("timer"), tiles: $("tiles"), grays: $("grays"), guess: $("guess"),
+    score: $("score"), timer: $("timer"), tiles: $("tiles"), keyboard: $("keyboard"),
     flash: $("flash"), found: $("found"), finalScore: $("finalScore"), gotList: $("gotList"),
     missedList: $("missedList"), start: $("start"), next: $("next")
   };
+  var ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm"];
 
   var stats = loadStats();
   var puzzle, found, score, timeLeft, ticker, flashTimer;
+  var slots;      // array of 5: green letter or null
+  var entry;      // letters typed into the open slots, in order
+  var keyEls = {};
 
   function loadStats() {
     try { return JSON.parse(localStorage.getItem("vrdl") || "{}"); } catch (e) { return {}; }
@@ -133,32 +141,160 @@
     flashTimer = setTimeout(function () { els.flash.textContent = ""; }, 900);
   }
 
+  // Build the keyboard once; per-round we only restyle keys.
+  function buildKeyboard() {
+    ROWS.forEach(function (row, r) {
+      var div = document.createElement("div");
+      div.className = "krow";
+      row.split("").forEach(function (ch) {
+        var k = document.createElement("button");
+        k.type = "button";
+        k.className = "key";
+        k.textContent = ch;
+        k.dataset.key = ch;
+        keyEls[ch] = k;
+        div.appendChild(k);
+      });
+      if (r === 2) {
+        var del = document.createElement("button");
+        del.type = "button";
+        del.className = "key wide";
+        del.textContent = "⌫";
+        del.setAttribute("aria-label", "Delete");
+        del.dataset.key = "Backspace";
+        div.appendChild(del);
+      }
+      els.keyboard.appendChild(div);
+    });
+    els.keyboard.addEventListener("click", function (e) {
+      var k = e.target.closest(".key");
+      if (!k) return;
+      handleKey(k.dataset.key);
+    });
+  }
+
+  function styleKeyboard() {
+    Object.keys(keyEls).forEach(function (ch) {
+      var k = keyEls[ch];
+      var isGray = puzzle.grays.indexOf(ch) !== -1;
+      var isGreen = puzzle.greens.some(function (g) { return g.letter === ch; });
+      k.classList.toggle("gray", isGray);
+      k.classList.toggle("green", isGreen);
+      k.disabled = isGray;
+      k.setAttribute("aria-disabled", isGray ? "true" : "false");
+    });
+  }
+
+  // The word is the greens plus the typed letters, filling open slots in order.
+  function currentWord() {
+    var e = 0, out = "";
+    for (var i = 0; i < 5; i++) out += slots[i] || entry[e++] || "";
+    return out;
+  }
+
+  function renderTiles() {
+    var e = 0;
+    var tiles = els.tiles.children;
+    for (var i = 0; i < 5; i++) {
+      var t = tiles[i];
+      if (slots[i]) continue;
+      var ch = entry[e++] || "";
+      t.textContent = ch;
+      t.classList.toggle("filled", !!ch);
+    }
+  }
+
+  function openSlots() {
+    return slots.filter(function (s) { return !s; }).length;
+  }
+
+  // Index of the open slot the next typed letter lands in (5 if none left).
+  function nextOpen() {
+    var e = 0;
+    for (var i = 0; i < 5; i++) {
+      if (slots[i]) continue;
+      if (e === entry.length) return i;
+      e++;
+    }
+    return 5;
+  }
+
+  // Greens sitting between the last filled open slot and the next open one.
+  function greensAtCursor() {
+    var e = 0, out = [];
+    for (var i = 0; i < 5; i++) {
+      if (slots[i]) { if (e === entry.length) out.push(i); continue; }
+      if (e === entry.length) break;
+      e++;
+    }
+    return out;
+  }
+
+  // Taps always fill the next empty tile. Physical typists often type the
+  // whole word, greens included, so a keystroke matching a green the cursor
+  // is passing over is swallowed instead of being placed in the next gap.
+  var consumed = {};
+  function handleKey(key, physical) {
+    if (els.game.classList.contains("hidden")) return;
+    if (key === "Backspace") {
+      entry = entry.slice(0, -1);
+      var from = nextOpen();
+      Object.keys(consumed).forEach(function (p) { if (+p >= from) delete consumed[p]; });
+      renderTiles();
+      return;
+    }
+    if (key === "Enter") { submit(); return; }
+    var ch = String(key).toLowerCase();
+    if (ch.length !== 1 || ch < "a" || ch > "z") return;
+    if (puzzle.grays.indexOf(ch) !== -1) { flash("Not in word", "bad"); return; }
+    if (entry.length >= openSlots()) return;
+
+    var passing = greensAtCursor();
+    if (physical) {
+      for (var i = 0; i < passing.length; i++) {
+        var p = passing[i];
+        if (consumed[p]) continue;
+        if (slots[p] === ch) { consumed[p] = true; return; }
+        break;
+      }
+    }
+    passing.forEach(function (p) { consumed[p] = true; });
+    entry.push(ch);
+    renderTiles();
+    if (entry.length === openSlots()) submit();
+  }
+
   function startRound() {
     puzzle = G.makePuzzle(WORDS);
     found = [];
     score = 0;
     timeLeft = G.ROUND_SECONDS;
+    slots = [null, null, null, null, null];
+    puzzle.greens.forEach(function (g) { slots[g.pos] = g.letter; });
+    resetEntry();
 
     els.tiles.innerHTML = "";
     for (var i = 0; i < 5; i++) {
       var t = document.createElement("div");
       t.className = "tile";
-      var g = puzzle.greens.filter(function (x) { return x.pos === i; })[0];
-      if (g) { t.classList.add("green"); t.textContent = g.letter; }
+      if (slots[i]) { t.classList.add("green"); t.textContent = slots[i]; }
       els.tiles.appendChild(t);
     }
-    els.grays.textContent = puzzle.grays.join(" ");
+    styleKeyboard();
     els.found.innerHTML = "";
     els.flash.textContent = "";
     els.score.textContent = "0";
     els.timer.textContent = String(timeLeft);
     els.timer.classList.remove("low");
-    els.guess.value = "";
     show(els.game);
-    els.guess.focus();
 
     clearInterval(ticker);
     ticker = setInterval(tick, 1000);
+  }
+
+  function resetEntry() {
+    entry = [];
+    consumed = {};
   }
 
   function tick() {
@@ -169,11 +305,14 @@
   }
 
   function submit() {
-    var result = G.checkGuess(els.guess.value, puzzle, found);
-    els.guess.value = "";
+    var word = currentWord();
+    resetEntry();
+    if (word.length !== 5) { renderTiles(); return; }
+    var result = G.checkGuess(word, puzzle, found);
+    renderTiles();
     if (!result.ok) {
       flash(result.reason, "bad");
-      els.guess.classList.remove("shake"); void els.guess.offsetWidth; els.guess.classList.add("shake");
+      els.tiles.classList.remove("shake"); void els.tiles.offsetWidth; els.tiles.classList.add("shake");
       return;
     }
     found.push(result.word);
@@ -187,7 +326,6 @@
 
   function endRound() {
     clearInterval(ticker);
-    els.guess.blur();
     stats.rounds = (stats.rounds || 0) + 1;
     if (score > (stats.best || 0)) stats.best = score;
     saveStats();
@@ -208,20 +346,22 @@
     els.next.focus();
   }
 
-  els.guess.addEventListener("input", function () {
-    var v = els.guess.value.replace(/[^a-zA-Z]/g, "");
-    if (v !== els.guess.value) els.guess.value = v;
-    if (v.length === 5) submit();
-  });
-  els.guess.addEventListener("keydown", function (e) {
-    if (e.key === "Enter") { e.preventDefault(); submit(); }
+  document.addEventListener("keydown", function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (!els.results.classList.contains("hidden")) {
+      if (e.key === "Enter") startRound();
+      return;
+    }
+    if (els.game.classList.contains("hidden")) return;
+    if (e.key === "Backspace" || e.key === "Enter" || /^[a-zA-Z]$/.test(e.key)) {
+      e.preventDefault();
+      handleKey(e.key, true);
+    }
   });
   els.start.addEventListener("click", startRound);
   els.next.addEventListener("click", startRound);
-  document.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && !els.results.classList.contains("hidden")) startRound();
-  });
 
+  buildKeyboard();
   renderStats();
 })();
 </script>
