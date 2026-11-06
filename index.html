@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>vrdl — Fill the Gaps</title>
+<meta name="description" content="A 20-second drill for the odd five-letter words that make Wordle hard.">
+<style>
+  :root {
+    --bg: #121213; --fg: #e8e8e8; --muted: #818384; --tile: #3a3a3c;
+    --green: #538d4e; --yellow: #b59f3b; --red: #a94442; --card: #1e1e20;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { display: flex; flex-direction: column; align-items: center; min-height: 100dvh; padding: 16px; }
+  main { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 16px; }
+  h1 { font-size: 1.4rem; margin: 0; text-align: center; letter-spacing: .04em; }
+  .sub { color: var(--muted); text-align: center; margin: 0; font-size: .95rem; }
+  .row { display: flex; justify-content: space-between; align-items: center; font-variant-numeric: tabular-nums; }
+  .timer { font-size: 1.6rem; font-weight: 700; min-width: 3ch; text-align: right; }
+  .timer.low { color: #ff6b6b; }
+  .tiles { display: flex; gap: 6px; justify-content: center; }
+  .tile { width: 58px; height: 58px; display: grid; place-items: center; font-size: 1.9rem; font-weight: 700;
+    text-transform: uppercase; border: 2px solid var(--tile); border-radius: 4px; }
+  .tile.green { background: var(--green); border-color: var(--green); }
+  .grays { text-align: center; color: var(--muted); font-size: .95rem; }
+  .grays b { color: var(--fg); letter-spacing: .25em; text-transform: uppercase; margin-left: .3em; }
+  input { width: 100%; font: inherit; font-size: 1.6rem; text-transform: uppercase; text-align: center;
+    letter-spacing: .3em; padding: 10px; border-radius: 6px; border: 2px solid var(--tile);
+    background: #000; color: var(--fg); outline: none; }
+  input:focus { border-color: var(--muted); }
+  .flash { min-height: 1.4em; text-align: center; font-weight: 600; }
+  .flash.bad { color: #ff6b6b; }
+  .flash.good { color: #7bd389; }
+  .found { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; min-height: 2em; }
+  .chip { padding: 4px 10px; border-radius: 999px; background: var(--tile); text-transform: uppercase;
+    font-weight: 600; letter-spacing: .08em; font-size: .9rem; }
+  .chip.answer { background: var(--green); }
+  .chip.missed { background: transparent; border: 1px solid var(--muted); color: var(--muted); }
+  button { font: inherit; font-size: 1.1rem; font-weight: 700; padding: 12px 20px; border: 0; border-radius: 8px;
+    background: var(--green); color: #fff; cursor: pointer; width: 100%; }
+  button.secondary { background: var(--tile); }
+  .card { background: var(--card); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .card h2 { margin: 0; font-size: 1rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
+  .legend { color: var(--muted); font-size: .85rem; text-align: center; }
+  .hidden { display: none !important; }
+  footer { margin-top: auto; padding-top: 24px; color: var(--muted); font-size: .8rem; text-align: center; }
+  footer a { color: var(--muted); }
+  @keyframes shake { 0%,100% { transform: translateX(0) } 25% { transform: translateX(-6px) } 75% { transform: translateX(6px) } }
+  .shake { animation: shake .25s; }
+</style>
+</head>
+<body>
+<main>
+  <h1>vrdl</h1>
+  <p class="sub">Type every five-letter word that fits before time runs out.</p>
+
+  <section id="intro" class="card">
+    <p style="margin:0">Green tiles are fixed. Gray letters are <em>not</em> in the word. Words from the
+      real Wordle answer list score 2, other valid words score 1. Words auto-submit at five letters.</p>
+    <div class="row"><span>Best score</span><b id="best">0</b></div>
+    <div class="row"><span>Rounds played</span><b id="rounds">0</b></div>
+    <button id="start">Start</button>
+  </section>
+
+  <section id="game" class="hidden">
+    <div class="row"><span>Score <b id="score">0</b></span><span class="timer" id="timer">20</span></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="grays">Not in word: <b id="grays"></b></div>
+    <input id="guess" type="text" maxlength="5" autocomplete="off" autocorrect="off" autocapitalize="characters"
+      spellcheck="false" inputmode="latin" aria-label="Your guess" enterkeyhint="go">
+    <div class="flash" id="flash"></div>
+    <div class="found" id="found"></div>
+  </section>
+
+  <section id="results" class="card hidden">
+    <div class="row"><span>Round score</span><b id="finalScore">0</b></div>
+    <h2>You found</h2>
+    <div class="found" id="gotList"></div>
+    <h2>You missed</h2>
+    <div class="found" id="missedList"></div>
+    <div class="legend">Green = on the Wordle answer list. Outlined = valid guess but never an answer.</div>
+    <button id="next">Next round</button>
+  </section>
+
+  <footer><a href="https://github.com/feoh/vrdl">Source on GitHub</a> · MIT</footer>
+</main>
+
+<script src="words.js"></script>
+<script src="logic.js"></script>
+<script>
+(function () {
+  "use strict";
+  var G = window.WordleGaps;
+  var $ = function (id) { return document.getElementById(id); };
+  var els = {
+    intro: $("intro"), game: $("game"), results: $("results"), best: $("best"), rounds: $("rounds"),
+    score: $("score"), timer: $("timer"), tiles: $("tiles"), grays: $("grays"), guess: $("guess"),
+    flash: $("flash"), found: $("found"), finalScore: $("finalScore"), gotList: $("gotList"),
+    missedList: $("missedList"), start: $("start"), next: $("next")
+  };
+
+  var stats = loadStats();
+  var puzzle, found, score, timeLeft, ticker, flashTimer;
+
+  function loadStats() {
+    try { return JSON.parse(localStorage.getItem("vrdl") || "{}"); } catch (e) { return {}; }
+  }
+  function saveStats() {
+    try { localStorage.setItem("vrdl", JSON.stringify(stats)); } catch (e) { /* private mode */ }
+  }
+  function renderStats() {
+    els.best.textContent = stats.best || 0;
+    els.rounds.textContent = stats.rounds || 0;
+  }
+
+  function chip(word, cls) {
+    var span = document.createElement("span");
+    span.className = "chip " + cls;
+    span.textContent = word;
+    return span;
+  }
+
+  function show(section) {
+    [els.intro, els.game, els.results].forEach(function (s) { s.classList.toggle("hidden", s !== section); });
+  }
+
+  function flash(text, cls) {
+    clearTimeout(flashTimer);
+    els.flash.textContent = text;
+    els.flash.className = "flash " + cls;
+    flashTimer = setTimeout(function () { els.flash.textContent = ""; }, 900);
+  }
+
+  function startRound() {
+    puzzle = G.makePuzzle(WORDS);
+    found = [];
+    score = 0;
+    timeLeft = G.ROUND_SECONDS;
+
+    els.tiles.innerHTML = "";
+    for (var i = 0; i < 5; i++) {
+      var t = document.createElement("div");
+      t.className = "tile";
+      var g = puzzle.greens.filter(function (x) { return x.pos === i; })[0];
+      if (g) { t.classList.add("green"); t.textContent = g.letter; }
+      els.tiles.appendChild(t);
+    }
+    els.grays.textContent = puzzle.grays.join(" ");
+    els.found.innerHTML = "";
+    els.flash.textContent = "";
+    els.score.textContent = "0";
+    els.timer.textContent = String(timeLeft);
+    els.timer.classList.remove("low");
+    els.guess.value = "";
+    show(els.game);
+    els.guess.focus();
+
+    clearInterval(ticker);
+    ticker = setInterval(tick, 1000);
+  }
+
+  function tick() {
+    timeLeft -= 1;
+    els.timer.textContent = String(timeLeft);
+    if (timeLeft <= 5) els.timer.classList.add("low");
+    if (timeLeft <= 0) endRound();
+  }
+
+  function submit() {
+    var result = G.checkGuess(els.guess.value, puzzle, found);
+    els.guess.value = "";
+    if (!result.ok) {
+      flash(result.reason, "bad");
+      els.guess.classList.remove("shake"); void els.guess.offsetWidth; els.guess.classList.add("shake");
+      return;
+    }
+    found.push(result.word);
+    score += result.points;
+    els.score.textContent = String(score);
+    els.found.appendChild(chip(result.word, result.isAnswer ? "answer" : ""));
+    flash(result.isAnswer ? "+2" : "+1", "good");
+    var total = puzzle.solutions.answers.length + puzzle.solutions.allowed.length;
+    if (found.length === total) endRound();
+  }
+
+  function endRound() {
+    clearInterval(ticker);
+    els.guess.blur();
+    stats.rounds = (stats.rounds || 0) + 1;
+    if (score > (stats.best || 0)) stats.best = score;
+    saveStats();
+    renderStats();
+
+    els.finalScore.textContent = String(score);
+    els.gotList.innerHTML = "";
+    els.missedList.innerHTML = "";
+    if (!found.length) els.gotList.appendChild(chip("nothing yet", "missed"));
+    found.forEach(function (w) {
+      els.gotList.appendChild(chip(w, puzzle.solutions.answers.indexOf(w) !== -1 ? "answer" : ""));
+    });
+    puzzle.solutions.answers.concat(puzzle.solutions.allowed).forEach(function (w) {
+      if (found.indexOf(w) !== -1) return;
+      els.missedList.appendChild(chip(w, puzzle.solutions.answers.indexOf(w) !== -1 ? "answer" : "missed"));
+    });
+    show(els.results);
+    els.next.focus();
+  }
+
+  els.guess.addEventListener("input", function () {
+    var v = els.guess.value.replace(/[^a-zA-Z]/g, "");
+    if (v !== els.guess.value) els.guess.value = v;
+    if (v.length === 5) submit();
+  });
+  els.guess.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); submit(); }
+  });
+  els.start.addEventListener("click", startRound);
+  els.next.addEventListener("click", startRound);
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !els.results.classList.contains("hidden")) startRound();
+  });
+
+  renderStats();
+})();
+</script>
+</body>
+</html>
