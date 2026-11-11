@@ -1,6 +1,6 @@
 # vrdl
 
-A 20-second drill for the odd five-letter words that make Wordle hard.
+A 60-second drill for the odd five-letter words that make Wordle hard.
 
 Play it: https://feoh.github.io/vrdl/
 
