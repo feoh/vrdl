@@ -2,7 +2,7 @@
 (function (root) {
   "use strict";
 
-  var ROUND_SECONDS = 20;
+  var ROUND_SECONDS = 60;
   var GREEN_COUNT = 2;
   var GRAY_COUNT = 5;
   var MIN_ANSWERS = 2;
